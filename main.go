@@ -1,14 +1,16 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
 	"os"
 
 	utils "./utils"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+	"gopkg.in/yaml.v2"
 )
 
 func main() {
@@ -25,7 +27,7 @@ func main() {
 	checkError(err)
 
 	// create destination file
-	dstFile, err := os.Create("./config.yaml")
+	dstFile, err := os.Create("./config.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -37,19 +39,40 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// copy source file to destination file
-	bytes, err := io.Copy(dstFile, srcFile)
+	// Read the concents of remote file into bytes
+	srcRead, err := ioutil.ReadAll(srcFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("%d bytes copied\n", bytes)
 
+	fmt.Printf("%s", srcRead)
+
+	var body interface{}
+	if err := yaml.Unmarshal([]byte(srcRead), &body); err != nil {
+		panic(err)
+	}
+
+	body = utils.ConvertYamlToJSON(body)
+
+	fmt.Println("body: ", body)
+
+	// mapBody, _ := body.(map[string]interface{})
+	// body = mapBody[parsingKey]
+
+	convertedJSON, err := json.Marshal(body)
+	if err != nil {
+		panic(err)
+	} else {
+		fmt.Printf("Output: %s\n", convertedJSON)
+	}
+
+	dstFile.Write(convertedJSON)
 	// flush in-memory copy
 	err = dstFile.Sync()
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	dstFile.Close()
 	// Close all the connection in the end
 	defer utils.Close(&sshClient)
 	defer sftpClient.Close()
